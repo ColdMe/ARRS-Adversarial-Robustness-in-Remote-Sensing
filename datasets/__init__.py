@@ -1,4 +1,6 @@
 from .ucm import UCM_Dataset
+from .aid import AID_Dataset
+from .mstar import MSTAR_Dataset
 
 import random
 import torch
@@ -32,11 +34,34 @@ def get_dataloader(mode, dataset_name, dataset_path, batchsize, num_workers):
             data = UCM_Dataset(mode, img_dir=dataset_path, transform = train_transform)
             data_loader = torch.utils.data.DataLoader(data, batch_size=batchsize, shuffle=True, num_workers=num_workers,
                                                       pin_memory=False, drop_last=False)
+            
         elif mode =='val' or mode == 'test' or mode == 'attack':
             data = UCM_Dataset(mode, img_dir=dataset_path, transform = test_transform)
             data_loader = torch.utils.data.DataLoader(data, batch_size=batchsize, shuffle=False,
                                                       num_workers=num_workers, pin_memory=False, drop_last=False)
 
+    elif dataset_name == 'aid':
+        if mode == 'train':
+            data = AID_Dataset(mode, img_dir=dataset_path, transform = train_transform)
+            data_loader = torch.utils.data.DataLoader(data, batch_size=batchsize, shuffle=True, num_workers=num_workers,
+                                                      pin_memory=False, drop_last=False)
+            
+        elif mode =='val' or mode == 'test' or mode == 'attack':
+            data = AID_Dataset(mode, img_dir=dataset_path, transform = test_transform)
+            data_loader = torch.utils.data.DataLoader(data, batch_size=batchsize, shuffle=False,
+                                                      num_workers=num_workers, pin_memory=False, drop_last=False)
+
+    elif dataset_name == 'mstar':
+        if mode == 'train':
+            data = MSTAR_Dataset(mode, img_dir=dataset_path, transform = train_transform)
+            data_loader = torch.utils.data.DataLoader(data, batch_size=batchsize, shuffle=True, num_workers=num_workers,
+                                                      pin_memory=False, drop_last=False)
+        elif mode =='val' or mode == 'test' or mode == 'attack':
+            data = MSTAR_Dataset(mode, img_dir=dataset_path, transform = test_transform)
+            data_loader = torch.utils.data.DataLoader(data, batch_size=batchsize, shuffle=False,
+                                                      num_workers=num_workers, pin_memory=False, drop_last=False)
+    else:
+        data_loader = None
     data_loader.name = dataset_name
     data_loader.batch = batchsize
     return data_loader

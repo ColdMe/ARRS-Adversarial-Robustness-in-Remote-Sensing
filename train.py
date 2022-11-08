@@ -8,8 +8,11 @@ import os
 import sys
 from config import TrainConfig
 import fire
-
 from attacks import get_attack
+import logging
+from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
+
     
 def train(**kwargs):
     # load and adjust configs
@@ -31,21 +34,30 @@ def train(**kwargs):
     if not os.path.exists(file_path):
         os.makedirs(file_path)
         
-    subfile_path = os.path.join(file_path, folder_name+f"_{curr}")
-    os.makedirs(subfile_path)
-    print(subfile_path)
+    
     
     # define the log file that receives your log info
     log_file_name = folder_name+f"_{curr}.log"
-    log_file = open(os.path.join(subfile_path, log_file_name), "w")
-    print(f'Writing to {os.path.join(subfile_path, log_file_name)}')
-    # redirect print output to log file
-    sys.stdout = log_file
+    subfile_path = os.path.join(file_path, folder_name+f"_{curr}")
+    os.makedirs(subfile_path)
+    
+    # define the log file that receives your log info
+    logger = logging.getLogger('mylogger')
+    logger.setLevel(logging.INFO)
+    log_file_name = folder_name+f"_{curr}.log"
+    # file stream
+    fh = logging.FileHandler(os.path.join(subfile_path, log_file_name), encoding='utf8')
+    logger.addHandler(fh)
+    # screen stream
+    sh = logging.StreamHandler()
+    logger.addHandler(sh)
+    
+    logger.info(f'Writing to {os.path.join(subfile_path, log_file_name)}')
     
     # print the config file
-    print('Config file:')
-    print(args)
-    print('')
+    logger.info('Config file:')
+    logger.info(args)
+    logger.info('')
     
     # get device
     gpu_list = [int(i) for i in args.gpu.strip().split(",")]
@@ -62,7 +74,8 @@ def train(**kwargs):
     loss_fn = nn.CrossEntropyLoss()
 
     # define optimizer
-    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
+    optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=args.momentum, weight_decay=args.weight_decay)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_period, gamma=args.lr_decay)
     
     # continue to train from the existed checkpoints
     start_epoch = 1
@@ -70,27 +83,28 @@ def train(**kwargs):
         import re
         searchObj = re.search( r'epoch_(.*).pth', args.ckpt_path, re.M|re.I)
         start_epoch = int(searchObj.group(1))+1
-        print(f'Retrieved checkpoints from {args.ckpt_path}')
+        logger.info(f'Retrieved checkpoints from {args.ckpt_path}')
     
     train_time = 0
     val_train = 0
     
+    writer = SummaryWriter(log_dir = '/root/tf-logs/')
+    
     # train!
     for t in range(start_epoch, args.epochs+1):
-        print(f"Epoch {t}\n-------------------------------")
+        logger.info(f"Epoch {t}\n-------------------------------")
         
         tic = time.time()
         # training process
         # train(args.adv_train, train_dataloader, model, loss_fn, optimizer, device)
         size = len(train_dataloader.dataset)
         model.train()
-        for batch, (clean_images, labels, target_labels) in enumerate(train_dataloader):
+        for batch, (clean_images, labels, target_labels) in tqdm(enumerate(train_dataloader)):
             clean_images, labels = clean_images.to(device), labels.to(device)
             target_labels = target_labels.to(device)
             
             if args.adv_train:
                 adversary = get_attack(attack_name=args.attack_name, model=model, eps=args.eps[0], nb_iter=args.nb_iter[0])
-                
                 adv_images = adversary.perturb(clean_images, labels)
                 # Compute prediction error
                 adv_pred = model(adv_images)
@@ -101,14 +115,18 @@ def train(**kwargs):
                 pred = model(clean_images)
                 loss = loss_fn(pred, labels)
             
+            
+            # add loss to the tensorboard
+            writer.add_scalar(tag = "loss/train", scalar_value = loss, global_step = (t-1) * len(train_dataloader) + batch)
+
             # Backpropagation
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            if batch % 10 == 0:
-                loss, current = loss.item(), batch * len(clean_images)
-                print(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
+            # if batch % 10 == 0:
+            #     loss, current = loss.item(), batch * len(clean_images)
+            #     logger.info(f"loss: {loss:>7f}  [{current:>5d}/{size:>5d}]")
         
         toc = time.time()
         train_time += toc - tic
@@ -121,7 +139,7 @@ def train(**kwargs):
         test_loss, correct = 0, 0
         adv_test_loss, adv_correct = 0, 0
         if args.adv_train:
-            for batch, (clean_images, labels, target_labels) in enumerate(val_dataloader):
+            for batch, (clean_images, labels, target_labels) in tqdm(enumerate(val_dataloader)):
                 clean_images, labels = clean_images.to(device), labels.to(device)
                 if args.adv_train:
                     adversary = get_attack(attack_name=args.attack_name, model=model, eps=args.eps[0], nb_iter=args.nb_iter[0])
@@ -134,6 +152,7 @@ def train(**kwargs):
                 pred = model(clean_images)
                 test_loss += loss_fn(pred, labels).item()
                 correct += (pred.argmax(1) == labels).type(torch.float).sum().item()
+                
         else:
             with torch.no_grad():
                 for batch, (clean_images, labels, target_labels) in enumerate(val_dataloader):
@@ -142,28 +161,34 @@ def train(**kwargs):
                     pred = model(clean_images)
                     test_loss += loss_fn(pred, labels).item()
                     correct += (pred.argmax(1) == labels).type(torch.float).sum().item()
+                    
         test_loss /= num_batches
         correct /= size
         
+        # add loss and accuracy to the tensorboard
+        writer.add_scalar(tag = "loss/val", scalar_value = test_loss, global_step = t * len(train_dataloader))
+        writer.add_scalar(tag = "acc/val", scalar_value = correct, global_step = t * len(train_dataloader))
+        
         val_time = time.time() - toc
         
-        print(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
+        logger.info(f"Test Error: \n Accuracy: {(100*correct):>0.1f}%, Avg loss: {test_loss:>8f} \n")
         if args.adv_train:
             adv_test_loss /= num_batches
             adv_correct /= size
-            print(f"Adv test Error: \n Accuracy: {(100*adv_correct):>0.1f}%, Avg loss: {adv_test_loss:>8f} \n")
+            logger.info(f"Adv test Error: \n Accuracy: {(100*adv_correct):>0.1f}%, Avg loss: {adv_test_loss:>8f} \n")
         
         
         # save the checkpoints
         if t % 10 == 0:
             ckpt_name = f'epoch_{t}.pth'
             torch.save(model.state_dict(), os.path.join(subfile_path, ckpt_name))
-            print(f"Saved PyTorch Model State to {os.path.join(subfile_path, ckpt_name)}")
-
-    print("Done!")
+            logger.info(f"Saved PyTorch Model State to {os.path.join(subfile_path, ckpt_name)}")
+            
+    writer.close()
+    logger.info("Done!")
     
-    print('Average train speed: {:.2f} s per epoch \n'.format(train_time/(args.epochs+1-start_epoch)))   
-    print('Average val speed: {:.2f} s per epoch \n'.format(val_time/(args.epochs+1-start_epoch)))   
+    logger.info('Average train speed: {:.2f} s per epoch \n'.format(train_time/(args.epochs+1-start_epoch)))   
+    logger.info('Average val speed: {:.2f} s per epoch \n'.format(val_time/(args.epochs+1-start_epoch)))   
 
 
 if __name__ == '__main__':

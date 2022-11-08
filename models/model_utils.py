@@ -9,11 +9,17 @@ def get_model(model_name, dataset_name, device='cpu', ckpt_path=None):
     # set num_classes for different datasets
     if dataset_name == 'ucm':
         num_classes = 21
-    
+    elif dataset_name == 'aid':
+        num_classes = 30
+    elif dataset_name == 'mstar':
+        num_classes = 8
+        
     # build the models and revise the classifier
     if model_name == 'resnet34':
         model = models.resnet34(pretrained=True)
         model.fc = nn.Linear(512, num_classes)
+        if dataset_name == 'mstar':
+            model.conv1 = nn.Conv2d(1, 64, kernel_size=7, stride=2, padding=3, bias=False)
     elif model_name == 'inception':
         model = models.inception_v3(pretrained=True)
         model.fc = nn.Linear(2048, num_classes)

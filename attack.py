@@ -12,6 +12,8 @@ from torch import nn
 from config import AttackConfig
 import pandas as pd
 import fire
+import logging
+from tqdm import tqdm
 
 def attack(**kwargs):
     # load and adjust configs
@@ -39,20 +41,28 @@ def attack(**kwargs):
     if not os.path.exists(file_path):
         os.makedirs(file_path)
     
-    # define the log file that receives your log info
+    # make a new file to store the results
     curr = time.strftime('%Y%m%d_%H%M%S', time.localtime(time.time()))
     subfile_path = os.path.join(file_path, folder_name+f"_{curr}")
     os.makedirs(subfile_path)
+    
+    # define the log file that receives your log info
+    logger = logging.getLogger('mylogger')
+    logger.setLevel(logging.INFO)
     log_file_name = folder_name+f"_{curr}.log"
-    log_file = open(os.path.join(subfile_path, log_file_name), "w")
-    print(f'Writing to {os.path.join(subfile_path, log_file_name)}')
-    # redirect print output to log file
-    sys.stdout = log_file
+    # file stream
+    fh = logging.FileHandler(os.path.join(subfile_path, log_file_name), encoding='utf8')
+    logger.addHandler(fh)
+    # screen stream
+    sh = logging.StreamHandler()
+    logger.addHandler(sh)
+
+    logger.info(f'Writing to {os.path.join(subfile_path, log_file_name)}')
     
     # print the config file
-    print('Config file:')
-    print(args)
-    print('')
+    logger.info('Config file:')
+    logger.info(args)
+    logger.info('')
     
     # get device
     gpu_list = [int(i) for i in args.gpu.strip().split(",")]
@@ -90,7 +100,7 @@ def attack(**kwargs):
     total_num = 0
     
     tic = time.time()
-    for batch, (clean_images, labels, target_labels) in enumerate(adv_dataloader):
+    for batch, (clean_images, labels, target_labels) in tqdm(enumerate(adv_dataloader)):
         bs = clean_images.shape[0]
         total_num += bs
         
@@ -127,12 +137,17 @@ def attack(**kwargs):
                     success_num[j] += (adv_pred == target_labels).sum()
                 else:
                     success_num[j] += (adv_pred != labels).sum()
-            break
+                    # print(adv_pred != labels)
+                    # print(j, args.eps[j], torch.max(abs(adv_images[0]-clean_images[0])))
+                    # print(j, args.eps[j], torch.max(abs(adv_images[1]-clean_images[1])))
+                    # print(j, args.eps[j], torch.max(abs(adv_images[2]-clean_images[2])))
+                    # print(j, args.eps[j], torch.max(abs(adv_images[3]-clean_images[3])))
+
     toc = time.time()
-    print('The total attack & defense process costs {:.2f} s'.format(toc-tic))
-    print('Average speed: {:.2f} s per 100 iter \n'.format((toc-tic) / ( total_num*100 / args.attack_batchsize)))   
+    logger.info('The total attack & defense process costs {:.2f} s'.format(toc-tic))
+    logger.info('Average speed: {:.2f} s per 100 iter \n'.format((toc-tic) / ( total_num*100 / args.attack_batchsize)))   
     final_test_acc = test_num.item() / total_num
-    print("Accuracy on the clean dataset of %s: %.2f %%" % (args.dataset_name, final_test_acc * 100))
+    logger.info("Accuracy on the clean dataset of %s: %.3f %%" % (args.dataset_name, final_test_acc * 100))
     
     
     
@@ -142,21 +157,21 @@ def attack(**kwargs):
     
     success_rates = []
     if args.attack_name != '':
-        print("Success Rate of %s on the dataset of %s :" % (args.attack_name, args.dataset_name))
+        logger.info("Success Rate of %s on the dataset of %s :" % (args.attack_name, args.dataset_name))
         if len(args.nb_iter) > 1:
             for i, iter_ in enumerate(args.nb_iter):
                 success_rate = success_num[i].item() / total_num
                 success_rates.append(success_rate)
-                print(f'iter: {iter_}, asr: {success_rate}')
+                logger.info(f'iter: {iter_}, asr: {success_rate}')
             df = pd.DataFrame({'epsilon':args.eps[0], 'iter':args.nb_iter, 'success_rates': success_rates})
         else:
             for i, eps in enumerate(args.eps):
                 success_rate = success_num[i].item() / total_num
                 success_rates.append(success_rate)
-                print(f'eps: {eps}, asr: {success_rate}')
+                logger.info(f'eps: {eps}, asr: {success_rate}')
             df = pd.DataFrame({'epsilon':args.eps, 'iter':args.nb_iter[0], 'success_rates': success_rates})
         success_rates.append(success_rate)
-    print('\n Saved to :',output_path)
+    # logger.info('\n Saved to :', output_path)
     df.to_csv(output_path, index=False, sep=',')
 
 

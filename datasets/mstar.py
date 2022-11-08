@@ -6,14 +6,11 @@ from PIL import Image
 import random
 
 
-class UCM_Dataset(Dataset):
+class MSTAR_Dataset(Dataset):
     '''
-    This is a 21 class land use image dataset meant for research purposes.
-    There are 100 images for each class.
-    Each image measures 256x256 pixels.
-    The images were manually extracted from large images from the USGS National Map Urban Area Imagery collection for various urban areas around the country. The pixel resolution of this public domain imagery is 1 foot.
-    Please cite the following paper when publishing results that use this dataset:
-    Yi Yang and Shawn Newsam, "Bag-Of-Visual-Words and Spatial Extensions for Land-Use Classification," ACM SIGSPATIAL International Conference on Advances in Geographic Information Systems (ACM GIS), 2010.
+    This is a 8 class image dataset meant for research purposes.
+    There are 1000 images for each class.
+    Each image measures 368x368 pixels.
     '''
     def __init__(self, mode, img_dir, ratio=0.8, transform=None):
         self.img_dir = img_dir
@@ -25,7 +22,7 @@ class UCM_Dataset(Dataset):
         for i, class_name in enumerate(self.classes):
             filefolder = os.path.join(self.img_dir, class_name)
             for img_name in os.listdir(filefolder):
-                if img_name.endswith('.tif'):
+                if img_name.endswith('.JPG'):
                     self.img_names.append(img_name)
                     self.img_paths.append(os.path.join(filefolder, img_name))
                     self.labels.append(i)
@@ -58,11 +55,11 @@ class UCM_Dataset(Dataset):
 
         image_path = self.img_paths[idx]
         label = self.labels[idx]
-        image = np.array(Image.open(image_path).convert('RGB'))
+        image = np.array(Image.open(image_path).convert('L'))
         image = Image.fromarray(image)
         if self.transform:
             image=self.transform(image)
         return image, int(label), int(label)
 
-# ucm = UCM_Dataset(mode = 'attack', img_dir = '/root/autodl-tmp/UCMerced_LandUse/Images')
-# print(ucm.__getitem__(0))
+# mstar = MSTAR_Dataset(mode='attack', img_dir='/root/autodl-tmp/MSTAR')
+# print(mstar.__getitem__(0))

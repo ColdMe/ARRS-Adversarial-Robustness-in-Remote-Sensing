@@ -3,29 +3,41 @@ import time
 
 class AttackConfig:
     def __init__(self):
-        # dataset-------------------------
-        # Dataset name, choices = ['ucm', ]
+        # * dataset-------------------------
+        # Dataset name, choices = ['ucm', 'aid', 'mstar']
         self.dataset_name = 'ucm'
         # dataset_path
         self.dataset_path = {'ucm': '/root/autodl-tmp/UCMerced_LandUse/Images',
+                             'aid': '/root/autodl-tmp/AID',
+                             'mstar': '/root/autodl-tmp/MSTAR',
                              }
 
         # model-------------------------
         # substitute model name, choices = ['resnet34', 'densenet', 'inception', 'vit', 'deit', 'swin']
         self.sub_model_name = 'resnet34'
+        
         # substitute checkpoints path
-        # self.sub_ckpt_path = 'checkpoints/ucm_densenet_bs64_lr0.001_20220731_125048/epoch_100.pth'
-        self.sub_ckpt_path = 'checkpoints/ucm_resnet34_adv_bs64_lr0.01/ucm_resnet34_adv_bs64_lr0.01_20220816_150516/epoch_300.pth'
+        self.sub_ckpt_path = 'checkpoints/ucm_resnet34_bs64_lr0.001/ucm_resnet34_bs64_lr0.001_20220731_112927/epoch_100.pth'
+        # self.sub_ckpt_path = 'checkpoints/ucm_resnet34_adv_bs64_lr0.01/ucm_resnet34_adv_bs64_lr0.01_20220816_150516/epoch_300.pth'
+        # self.sub_ckpt_path = 'checkpoints/aid_resnet34_bs64_lr0.001/aid_resnet34_bs64_lr0.001_20220914_225046/epoch_100.pth'
+        # self.sub_ckpt_path = 'checkpoints/mstar_resnet34_bs64_lr0.001/mstar_resnet34_bs64_lr0.001_20220915_202756/epoch_30.pth'
+        # self.sub_ckpt_path = 'checkpoints/ucm_densenet_bs64_lr0.001/ucm_densenet_bs64_lr0.001_20220731_125048/epoch_100.pth'
+        # self.sub_ckpt_path = 'checkpoints/ucm_vit_bs64_lr0.001/ucm_vit_bs64_lr0.001_20221008_124921/epoch_70.pth' # or 20
+        
         # defense model name, choices = ['resnet34', 'densenet', 'inception', 'vit', 'deit', 'swin']
         self.defense_model_name = 'resnet34'
-        # defense_checkpoints path
-        # self.defense_ckpt_path = 'checkpoints/ucm_densenet_bs64_lr0.001_20220731_125048/epoch_100.pth'
         
-        self.defense_ckpt_path = 'checkpoints/ucm_resnet34_adv_bs64_lr0.01/ucm_resnet34_adv_bs64_lr0.01_20220816_150516/epoch_300.pth'
+        # defense_checkpoints path
+        self.defense_ckpt_path = 'checkpoints/ucm_resnet34_bs64_lr0.001/ucm_resnet34_bs64_lr0.001_20220731_112927/epoch_100.pth'
+        # self.defense_ckpt_path = 'checkpoints/ucm_resnet34_adv_bs64_lr0.01/ucm_resnet34_adv_bs64_lr0.01_20220816_150516/epoch_300.pth'
+        # self.defense_ckpt_path = 'checkpoints/aid_resnet34_bs64_lr0.001/aid_resnet34_bs64_lr0.001_20220914_225046/epoch_100.pth'
+        # self.defense_ckpt_path = 'checkpoints/mstar_resnet34_bs64_lr0.001/mstar_resnet34_bs64_lr0.001_20220915_202756/epoch_30.pth'
+        # self.defense_ckpt_path = 'checkpoints/ucm_densenet_bs64_lr0.001/ucm_densenet_bs64_lr0.001_20220731_125048/epoch_100.pth'
+
         
         # attack-------------------------
         # attack name, choices = ['', 'fgsm', 'pgd', 'mim']
-        self.attack_name = 'pgd'
+        self.attack_name = 'fgsm'
         # batch size of the dataloader
         self.attack_batchsize = 16
         # You can choose np.inf and 2(l2), l2 support all methods and linf dont support cw and deepfool', choices=[np.inf, 2]
